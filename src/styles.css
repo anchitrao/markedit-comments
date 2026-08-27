@@ -1,0 +1,196 @@
+/*
+ * All colors come from custom properties that `theme.ts` fills in by measuring
+ * the editor theme, so the comment UI follows whatever theme the user has set
+ * (and follows it again when they change it) rather than hard-coding its own.
+ */
+
+/*
+ * Scoped through `.markdown-body` and qualified with the tag name: the preview's
+ * github-markdown style sheet styles `.markdown-body mark` with its own attention
+ * color, which outranks a lone class selector and would otherwise win.
+ */
+.markdown-body mark.mec-highlight {
+  background-color: var(--mec-highlight);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0.05em 0;
+  cursor: pointer;
+  transition: background-color 0.12s ease-out;
+}
+
+.markdown-body mark.mec-highlight:hover,
+.markdown-body mark.mec-highlight.mec-active {
+  background-color: var(--mec-highlight-strong);
+}
+
+.markdown-body mark.mec-highlight.mec-resolved {
+  background-color: transparent;
+  box-shadow: inset 0 -1px 0 0 var(--mec-border);
+}
+
+.markdown-body mark.mec-highlight.mec-outdated {
+  background-color: transparent;
+  box-shadow: inset 0 -2px 0 0 var(--mec-highlight-strong);
+  opacity: 0.85;
+}
+
+/*
+ * The reply-count badge is drawn from an attribute rather than a child element:
+ * a real element would contribute text, which would end up inside the quotes
+ * captured for any comment made nearby.
+ */
+.markdown-body mark.mec-highlight-end::after {
+  content: '\1F4AC';
+  font-size: 0.7em;
+  line-height: 1;
+  vertical-align: super;
+  margin-left: 0.15em;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.markdown-body mark.mec-highlight-end.mec-resolved::after {
+  content: '\2713';
+  color: var(--mec-muted);
+}
+
+/* Panels */
+
+.mec-panel {
+  position: fixed;
+  z-index: 2147483000;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  border: 1px solid var(--mec-border);
+  border-radius: 10px;
+  background-color: var(--mec-surface);
+  color: var(--mec-text);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  font: caption;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mec-panel * {
+  box-sizing: border-box;
+}
+
+.mec-quote {
+  margin: 0 0 8px 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--mec-highlight-strong);
+  color: var(--mec-muted);
+  font-style: italic;
+  max-height: 3.2em;
+  overflow: hidden;
+}
+
+.mec-thread {
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: 0 0 8px 0;
+}
+
+.mec-comment + .mec-comment {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--mec-border);
+}
+
+.mec-byline {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--mec-muted);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.mec-author {
+  font-weight: 600;
+  color: var(--mec-text);
+}
+
+.mec-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mec-flag {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--mec-border);
+  font-size: 10px;
+  color: var(--mec-muted);
+}
+
+.mec-input {
+  display: block;
+  width: 100%;
+  min-height: 62px;
+  max-height: 40vh;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid var(--mec-border);
+  border-radius: 7px;
+  background-color: var(--mec-bg);
+  color: var(--mec-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.mec-input:focus {
+  outline: none;
+  border-color: var(--mec-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--mec-accent) 25%, transparent);
+}
+
+.mec-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mec-hint {
+  flex: 1;
+  color: var(--mec-muted);
+  font-size: 11px;
+}
+
+.mec-button {
+  padding: 4px 11px;
+  border: 1px solid var(--mec-border);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--mec-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mec-button:hover {
+  background-color: var(--mec-highlight);
+}
+
+.mec-button.mec-primary {
+  border-color: transparent;
+  background-color: var(--mec-accent);
+  color: var(--mec-bg);
+  font-weight: 600;
+}
+
+.mec-button.mec-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mec-button.mec-danger:hover {
+  border-color: currentColor;
+  color: #d1242f;
+  background-color: transparent;
+}
