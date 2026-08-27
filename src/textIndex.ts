@@ -145,6 +145,25 @@ export function positionOf(index: TextIndex, node: Node, offset: number): number
 }
 
 /**
+ * A single Range covering a normalized span, which may cross element boundaries.
+ *
+ * One Range is enough because the highlight API paints across nodes; the
+ * per-node spans below are only needed by callers that wrap elements.
+ */
+export function rangeBetween(index: TextIndex, start: number, end: number): Range | undefined {
+  const startNode = index.nodes[start];
+  const endNode = index.nodes[end - 1];
+  if (startNode === undefined || endNode === undefined) {
+    return undefined;
+  }
+
+  const range = document.createRange();
+  range.setStart(startNode, index.offsets[start]);
+  range.setEnd(endNode, Math.min(index.offsets[end - 1] + 1, endNode.data.length));
+  return range;
+}
+
+/**
  * Wrap a span of a text node in a fresh element, in place.
  *
  * The span is always contained in a single text node, which is what makes

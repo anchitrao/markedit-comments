@@ -1,124 +1,168 @@
 import { locateQuote } from './anchor';
-import { buildTextIndex, spansForRange, wrapSpan } from './textIndex';
+import { buildTextIndex, rangeBetween } from './textIndex';
+import type { TextIndex } from './textIndex';
 import type { ParsedAnnotation } from './format';
 
-/** A comment as the preview needs it: the record plus how many replies it has. */
+/**
+ * Highlights, drawn without touching the document.
+ *
+ * An earlier version wrapped the quoted text in `<mark>` elements. That worked,
+ * but rewriting text nodes is exactly what makes WebKit go on painting a
+ * selection it still holds, which left blue blocks over the preview after a drag
+ * — and no amount of ordering the clear against the mutation fixed it reliably.
+ *
+ * The CSS Custom Highlight API paints a Range directly, so the DOM is never
+ * modified and the problem cannot arise. The cost is that there is no element to
+ * hang a click handler on, so hit testing goes through `annotationAt` instead.
+ */
 export type PaintableAnnotation = ParsedAnnotation & { replyCount?: number };
 
-export const ID_ATTRIBUTE = 'data-mec-id';
-export const PENDING_CLASS = 'mec-pending';
+type Painted = {
+  id: string;
+  range: Range;
+  outdated: boolean;
+  replyCount: number;
+};
+
+/** Highlight registry names, one per visual state. */
+const NAMES = {
+  comment: 'mec-comment',
+  resolved: 'mec-comment-resolved',
+  outdated: 'mec-comment-outdated',
+  pending: 'mec-comment-pending',
+  active: 'mec-comment-active',
+} as const;
+
+let painted: Painted[] = [];
+
+/** Whether the browser can paint ranges without a wrapper element. */
+export function isSupported(): boolean {
+  return typeof CSS !== 'undefined' && 'highlights' in CSS && typeof Highlight === 'function';
+}
 
 /**
- * Paint the highlights for a set of comments onto the rendered preview.
+ * Paint the highlights for a set of comments.
  *
- * Comments live in the Markdown as quotes rather than as inline markers, so the
- * highlight has to be found again on every render. Anything whose quote no longer
- * appears falls back to the block it was written against and is marked outdated,
- * which keeps a comment visible and answerable after the text beneath it moved on
- * instead of silently dropping it.
+ * Because nothing is mutated, the text index is built once and shared by every
+ * comment, rather than being rebuilt after each one as it had to be when
+ * painting split the nodes underneath.
  */
 export function paintHighlights(pane: HTMLElement, annotations: PaintableAnnotation[]): void {
-  clearHighlights(pane);
+  const index = buildTextIndex(pane);
+  const groups: Record<string, Range[]> = { comment: [], resolved: [], outdated: [] };
+  painted = [];
 
   for (const annotation of annotations) {
-    // The index is rebuilt per comment because wrapping splits text nodes, which
-    // invalidates the positions recorded for everything painted after it.
-    const index = buildTextIndex(pane);
-    const located = locateQuote(index, annotation);
-
-    if (located === undefined) {
-      paintFallback(pane, annotation);
+    const found = rangeFor(pane, index, annotation);
+    if (found === undefined) {
       continue;
     }
 
-    const spans = spansForRange(index, located.start, located.end);
-    const marks = spans.map(span => wrapSpan(span, () => createMark(annotation, false)));
-    tagLastMark(marks, annotation);
+    const { range, outdated } = found;
+    painted.push({ id: annotation.id, range, outdated, replyCount: annotation.replyCount ?? 0 });
+
+    const bucket = outdated ? 'outdated' : (annotation.resolved === true ? 'resolved' : 'comment');
+    groups[bucket].push(range);
   }
+
+  apply(NAMES.comment, groups.comment);
+  apply(NAMES.resolved, groups.resolved);
+  apply(NAMES.outdated, groups.outdated);
 }
 
-/** Remove every highlight, restoring the preview to what the renderer produced. */
-export function clearHighlights(pane: HTMLElement): void {
-  const marks = pane.querySelectorAll<HTMLElement>(`[${ID_ATTRIBUTE}]`);
-  if (marks.length === 0) {
-    // Nothing to unwrap. Returning early matters: `normalize()` below rewrites
-    // text nodes across the whole pane, and doing that under a live selection
-    // leaves WebKit painting a stale one.
-    return;
+function rangeFor(pane: HTMLElement, index: TextIndex, annotation: PaintableAnnotation) {
+  const located = locateQuote(index, annotation);
+  if (located !== undefined) {
+    const range = rangeBetween(index, located.start, located.end);
+    return range === undefined ? undefined : { range, outdated: false };
   }
 
-  for (const mark of marks) {
-    const parent = mark.parentNode;
-    if (parent === null) {
-      continue;
-    }
-
-    while (mark.firstChild !== null) {
-      parent.insertBefore(mark.firstChild, mark);
-    }
-
-    mark.remove();
-  }
-
-  // Re-join the text nodes that wrapping split, so the next index sees the same
-  // node layout the renderer produced.
-  pane.normalize();
-}
-
-function createMark(annotation: PaintableAnnotation, outdated: boolean): HTMLElement {
-  const mark = document.createElement('mark');
-  mark.className = 'mec-highlight';
-  mark.setAttribute(ID_ATTRIBUTE, annotation.id);
-  mark.setAttribute('role', 'button');
-  mark.tabIndex = 0;
-
-  if (annotation.resolved === true) {
-    mark.classList.add('mec-resolved');
-  }
-
-  if (outdated) {
-    mark.classList.add('mec-outdated');
-    mark.title = 'The text this comment was written against has changed.';
-  }
-
-  return mark;
-}
-
-/**
- * Put the comment count on the final mark of a group.
- *
- * The badge is drawn by the style sheet from this attribute rather than as a
- * child element, so it contributes no text of its own and cannot leak into the
- * quotes captured for later comments.
- */
-function tagLastMark(marks: HTMLElement[], annotation: PaintableAnnotation): void {
-  const last = marks[marks.length - 1];
-  if (last !== undefined) {
-    last.classList.add('mec-highlight-end');
-    last.setAttribute('data-mec-count', String(annotation.replyCount ?? 0));
-  }
-}
-
-/**
- * Highlight the block a comment was written against, when its quote is gone.
- *
- * This mirrors how a code review keeps an outdated comment attached to its file
- * instead of discarding it.
- */
-function paintFallback(pane: HTMLElement, annotation: PaintableAnnotation): void {
+  // The quote is gone; fall back to the block it was written against, the way a
+  // code review keeps an outdated comment attached to its file.
   const block = blockForLine(pane, annotation.line);
-  if (block === undefined) {
+  if (block === undefined || block.textContent === null || block.textContent.trim().length === 0) {
+    return undefined;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(block);
+  return { range, outdated: true };
+}
+
+function apply(name: string, ranges: Range[]): void {
+  if (!isSupported()) {
     return;
   }
 
-  const index = buildTextIndex(block);
-  if (index.text.trim().length === 0) {
+  if (ranges.length === 0) {
+    CSS.highlights.delete(name);
     return;
   }
 
-  const spans = spansForRange(index, 0, index.text.length);
-  const marks = spans.map(span => wrapSpan(span, () => createMark(annotation, true)));
-  tagLastMark(marks, annotation);
+  CSS.highlights.set(name, new Highlight(...ranges));
+}
+
+/** Paint the range a comment is being written about, before it is saved. */
+export function paintPendingRange(range: Range): void {
+  apply(NAMES.pending, [range]);
+}
+
+export function clearPending(): void {
+  CSS.highlights.delete(NAMES.pending);
+}
+
+/** Briefly emphasise one comment, used when stepping through them. */
+export function setActive(id: string | undefined): void {
+  const found = painted.find(entry => entry.id === id);
+  apply(NAMES.active, found === undefined ? [] : [found.range]);
+}
+
+/** Remove every highlight this extension has drawn. */
+export function clearHighlights(): void {
+  painted = [];
+  for (const name of Object.values(NAMES)) {
+    CSS.highlights.delete(name);
+  }
+}
+
+/**
+ * The comment covering a point on screen.
+ *
+ * With no element to receive the click, the point is turned back into a document
+ * position and tested against the ranges that were painted.
+ */
+export function annotationAt(x: number, y: number): { id: string; outdated: boolean } | undefined {
+  const caret = document.caretRangeFromPoint?.(x, y);
+  if (caret === null || caret === undefined) {
+    return undefined;
+  }
+
+  for (const entry of painted) {
+    try {
+      if (entry.range.comparePoint(caret.startContainer, caret.startOffset) === 0) {
+        return { id: entry.id, outdated: entry.outdated };
+      }
+    } catch {
+      // A range whose nodes have gone stale simply does not match.
+    }
+  }
+
+  return undefined;
+}
+
+/** Where a comment currently sits on screen, for positioning UI against it. */
+export function rectFor(id: string): DOMRect | undefined {
+  const entry = painted.find(candidate => candidate.id === id);
+  if (entry === undefined) {
+    return undefined;
+  }
+
+  const rect = entry.range.getBoundingClientRect();
+  return rect.width === 0 && rect.height === 0 ? undefined : rect;
+}
+
+export function paintedIds(): string[] {
+  return painted.map(entry => entry.id);
 }
 
 /** The rendered block whose source line range contains `line`. */
@@ -138,7 +182,6 @@ export function blockForLine(pane: HTMLElement, line: number | undefined): HTMLE
       continue;
     }
 
-    // Prefer a block that contains the line; otherwise take the nearest one.
     const distance = line >= from && line <= to ? 0 : Math.min(Math.abs(line - from), Math.abs(line - to));
     if (distance < bestDistance) {
       best = element;

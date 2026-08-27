@@ -5,53 +5,35 @@
  */
 
 /*
- * Scoped through `.markdown-body` and qualified with the tag name: the preview's
- * github-markdown style sheet styles `.markdown-body mark` with its own attention
- * color, which outranks a lone class selector and would otherwise win.
+ * Highlights are painted with the CSS Custom Highlight API rather than by
+ * wrapping text in elements, so the document is never modified. Only a few
+ * properties are honoured on ::highlight() — colour, background, text
+ * decoration and shadow — which is why the resolved and outdated states are
+ * distinguished by underline rather than by a border or padding.
  */
-.markdown-body mark.mec-highlight {
+
+::highlight(mec-comment) {
   background-color: var(--mec-highlight);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0.05em 0;
-  cursor: pointer;
-  transition: background-color 0.12s ease-out;
 }
 
-.markdown-body mark.mec-highlight:hover,
-.markdown-body mark.mec-highlight.mec-active {
+::highlight(mec-comment-pending),
+::highlight(mec-comment-active) {
   background-color: var(--mec-highlight-strong);
 }
 
-.markdown-body mark.mec-highlight.mec-resolved {
+::highlight(mec-comment-resolved) {
   background-color: transparent;
-  box-shadow: inset 0 -1px 0 0 var(--mec-border);
+  text-decoration: underline;
+  text-decoration-color: var(--mec-border);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
-.markdown-body mark.mec-highlight.mec-outdated {
+::highlight(mec-comment-outdated) {
   background-color: transparent;
-  box-shadow: inset 0 -2px 0 0 var(--mec-highlight-strong);
-  opacity: 0.85;
-}
-
-/*
- * The reply-count badge is drawn from an attribute rather than a child element:
- * a real element would contribute text, which would end up inside the quotes
- * captured for any comment made nearby.
- */
-.markdown-body mark.mec-highlight-end::after {
-  content: '\1F4AC';
-  font-size: 0.7em;
-  line-height: 1;
-  vertical-align: super;
-  margin-left: 0.15em;
-  opacity: 0.75;
-  cursor: pointer;
-}
-
-.markdown-body mark.mec-highlight-end.mec-resolved::after {
-  content: '\2713';
-  color: var(--mec-muted);
+  text-decoration: underline wavy;
+  text-decoration-color: var(--mec-highlight-strong);
+  text-underline-offset: 2px;
 }
 
 /* Panels */

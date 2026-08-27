@@ -2,9 +2,9 @@ import { MarkEdit } from 'markedit-api';
 
 import { describeSelection } from './anchor';
 import { normalize } from './format';
-import { ID_ATTRIBUTE, clearHighlights, paintHighlights } from './paint';
+import { annotationAt, clearHighlights, clearPending, paintHighlights, paintPendingRange, rectFor } from './paint';
 import { addAnnotation, defaultAuthor, isEditorAttached, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved, updateAnnotation } from './store';
-import { buildTextIndex, positionOf, spansForRange, wrapSpan } from './textIndex';
+import { buildTextIndex, positionOf, rangeBetween } from './textIndex';
 import { closePanel, isOwnUI, isPanelOpen, showComposer, showThread } from './ui';
 import { applyThemeColors } from './theme';
 import type { PaintableAnnotation } from './paint';
@@ -17,8 +17,6 @@ export type Settings = {
   /** Keep painting highlights for comments that have been resolved. */
   showResolved: boolean;
 };
-
-const PENDING = 'pending';
 
 let pane: HTMLElement | undefined;
 let settings: Settings;
@@ -109,65 +107,14 @@ export function repaint(): void {
     return;
   }
 
-  // Painting rewrites nodes the reader may have selected; see `openComposer`.
-  if (hasLiveSelection(pane)) {
-    repaintWhenSelectionEnds();
-    return;
-  }
-
   // Re-measure here as well: a repaint follows every render, which makes this the
   // reliable point at which the theme is known to be fully applied.
   applyThemeColors();
 
-  const annotations = visibleAnnotations();
-
-  observer?.disconnect();
-  try {
-    paintHighlights(pane, annotations);
-  } finally {
-    if (observer !== undefined) {
-      observer.observe(pane, { childList: true, subtree: true, characterData: true });
-    }
-  }
+  // Painting draws ranges rather than rewriting nodes, so it cannot re-trigger
+  // the observer and cannot disturb a selection the reader is holding.
+  paintHighlights(pane, visibleAnnotations());
 }
-
-/** Whether the reader currently has text selected inside `root`. */
-function hasLiveSelection(root: HTMLElement): boolean {
-  const selection = window.getSelection();
-  if (selection === null || selection.isCollapsed || selection.rangeCount === 0) {
-    return false;
-  }
-
-  return root.contains(selection.getRangeAt(0).commonAncestorContainer);
-}
-
-/**
- * Repaint once the reader's selection goes away.
- *
- * Rewriting nodes under a live selection makes WebKit paint a stale one, and
- * clearing the selection ourselves would break selecting text in order to copy
- * it. Waiting costs nothing: the highlights are already on screen.
- */
-function repaintWhenSelectionEnds(): void {
-  if (deferredBySelection) {
-    return;
-  }
-
-  deferredBySelection = true;
-  const listener = () => {
-    if (pane !== undefined && hasLiveSelection(pane)) {
-      return;
-    }
-
-    document.removeEventListener('selectionchange', listener);
-    deferredBySelection = false;
-    repaint();
-  };
-
-  document.addEventListener('selectionchange', listener);
-}
-
-let deferredBySelection = false;
 
 function visibleAnnotations(): PaintableAnnotation[] {
   const all = readAnnotations();
@@ -191,15 +138,20 @@ function installListeners(pane: HTMLElement): void {
   });
 
   pane.addEventListener('click', event => {
-    const target = event.target as Element | null;
-    const mark = target?.closest?.(`[${ID_ATTRIBUTE}]`) as HTMLElement | null;
-    const id = mark?.getAttribute(ID_ATTRIBUTE);
-
-    if (id !== null && id !== undefined && id !== PENDING) {
-      event.preventDefault();
-      event.stopPropagation();
-      openThread(id, mark!.getBoundingClientRect());
+    const hit = annotationAt(event.clientX, event.clientY);
+    if (hit === undefined) {
+      return;
     }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openThread(hit.id, rectFor(hit.id) ?? new DOMRect(event.clientX, event.clientY, 0, 0), hit.outdated);
+  });
+
+  // There is no element under the pointer to carry a cursor, so it is set here.
+  pane.addEventListener('mousemove', event => {
+    const over = annotationAt(event.clientX, event.clientY) !== undefined;
+    pane.style.cursor = over ? 'pointer' : '';
   });
 
   document.addEventListener('mousedown', event => {
@@ -242,6 +194,7 @@ export function handleSelection(): boolean {
 }
 
 type Capture = {
+  range: Range;
   exact: string;
   prefix: string;
   suffix: string;
@@ -285,11 +238,17 @@ function captureSelection(pane: HTMLElement): Capture | undefined {
     return undefined;
   }
 
+  const painted = rangeBetween(index, start, end);
+  if (painted === undefined) {
+    return undefined;
+  }
+
   const selector = describeSelection(index, start, end);
   const lines = lineRangeAround(pane, range.startContainer, range.endContainer);
 
   return {
     ...selector,
+    range: painted,
     start,
     end,
     line: lines?.from,
@@ -304,17 +263,13 @@ function openComposer(capture: Capture): void {
   // that stale selection: blue blocks survive across cells, or over most of the
   // document, long after the selection is logically gone. Clearing first means
   // there is nothing live for the wrap below to disturb.
+  paintPendingRange(capture.range);
   window.getSelection()?.removeAllRanges();
-
-  // Paint on the next frame, not in this one. Clearing the selection and then
-  // rewriting the nodes it covered within the same tick gives WebKit no chance
-  // to drop the selection it is still holding, and it goes on painting it.
-  requestAnimationFrame(() => paintPending(capture.start, capture.end));
 
   showComposer({
     quote: capture.exact,
     near: capture.rect,
-    onCancel: () => repaint(),
+    onCancel: () => { clearPending(); repaint(); },
     onSubmit: body => {
       addAnnotation({
         body,
@@ -331,39 +286,13 @@ function openComposer(capture: Capture): void {
   });
 }
 
-function paintPending(start: number, end: number): void {
-  if (pane === undefined) {
-    return;
-  }
-
-  observer?.disconnect();
-  try {
-    const index = buildTextIndex(pane);
-    for (const span of spansForRange(index, start, end)) {
-      wrapSpan(span, () => {
-        const mark = document.createElement('mark');
-        mark.className = 'mec-highlight mec-active';
-        mark.setAttribute(ID_ATTRIBUTE, PENDING);
-        return mark;
-      });
-    }
-  } finally {
-    if (observer !== undefined && pane !== undefined) {
-      observer.observe(pane, { childList: true, subtree: true, characterData: true });
-    }
-  }
-}
-
-function openThread(id: string, rect: DOMRect): void {
+function openThread(id: string, rect: DOMRect, outdated: boolean): void {
   const all = readAnnotations();
   const thread = threadOf(all, id);
   const root = thread[0];
   if (root === undefined) {
     return;
   }
-
-  const mark = pane?.querySelector(`[${ID_ATTRIBUTE}="${id}"]`);
-  const outdated = mark?.classList.contains('mec-outdated') === true;
 
   showThread({
     thread,

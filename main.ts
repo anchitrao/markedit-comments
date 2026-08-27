@@ -5,7 +5,7 @@ import { activate, handleSelection, orderedRoots, repaint, currentPane } from '.
 import { installStyles } from './src/ui';
 import { observeTheme } from './src/theme';
 import { readAnnotations, removeAnnotation, roots, threadOf } from './src/store';
-import { ID_ATTRIBUTE } from './src/paint';
+import { rectFor, setActive } from './src/paint';
 import type { Settings } from './src/preview';
 import type { ParsedAnnotation } from './src/format';
 
@@ -100,15 +100,18 @@ function step(direction: number): void {
   }
 
   cursor = (cursor + direction + comments.length * 2) % comments.length;
-  const target = pane.querySelector(`[${ID_ATTRIBUTE}="${comments[cursor].id}"]`);
-
-  if (target === null) {
+  const id = comments[cursor].id;
+  const rect = rectFor(id);
+  if (rect === undefined) {
     return;
   }
 
-  target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  (target as HTMLElement).classList.add('mec-active');
-  setTimeout(() => (target as HTMLElement).classList.remove('mec-active'), 900);
+  // There is no element to scroll to, so scroll the pane by the range's offset.
+  const middle = rect.top + rect.height / 2 - pane.clientHeight / 2;
+  pane.scrollBy({ top: middle, behavior: 'smooth' });
+
+  setActive(id);
+  setTimeout(() => setActive(undefined), 900);
 }
 
 /**
