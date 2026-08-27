@@ -1,29 +1,30 @@
-# Comment anchoring test
+# Session timeout policy
 
-The quick brown fox jumps over the lazy dog. This paragraph exists so we
-have ordinary prose to annotate.
+Sessions currently expire after 30 minutes of inactivity. This document proposes
+moving to a sliding window with a hard ceiling.
 
-## A table
+## Proposed limits
 
-| Feature  | Status |
-| -------- | ------ |
-| Comments | Draft  |
-| Anchors  | Done   |
+| Setting          | Today  | Proposed |
+| ---------------- | ------ | -------- |
+| Idle timeout     | 30 min | 20 min   |
+| Absolute ceiling | none   | 12 hours |
+| Refresh grace    | none   | 60 s     |
 
-## A code fence
+## Implementation sketch
 
-```js
-const timeout = 5000;
-fetchUser(id).then(render);
+```ts
+const IDLE_TIMEOUT = 20 * 60 * 1000;
+
+function isExpired(session: Session, now: number): boolean {
+  return now - session.lastSeen > IDLE_TIMEOUT;
+}
 ```
 
-## A list
+## Open questions
 
-- first item
-- second item with a nested list
-  - inner detail here
-- third item
+- Should the ceiling apply to service accounts?
+- What happens to a websocket that outlives its session?
+- Do we need a grace period for in-flight requests?
 
-> A blockquote worth remarking on.
-
-Text with `inlineCode(x)` and **bold words** and [a link](https://example.com).
+> Rollout is gated on the audit log work landing first.

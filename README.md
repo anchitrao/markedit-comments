@@ -6,7 +6,12 @@ Select text in the preview, start typing, and the comment attaches to what you
 selected. Comments are stored **in the Markdown file itself**, so an agent you are
 working with can read your review straight from the document.
 
-![Comments in the preview](screenshot.png)
+![Selecting text in the preview opens a composer](screenshot.png)
+
+Because the comments live in the Markdown, an agent can read a review and answer
+in the document. Replies are Markdown too, and render as such:
+
+![A reviewer's comment answered by an agent](screenshot-thread.png)
 
 ## Why comments are stored the way they are
 
@@ -25,15 +30,25 @@ to mark it *outdated* when it cannot).
 This extension takes that model and puts it in the file:
 
 ```markdown
-The quick brown fox jumps over the lazy dog.
+- Should the ceiling apply to service accounts?
 
 <!-- annotation
-id=c1 author="anchit.rao" created="2026-08-26T18:04:00Z" line=2
-exact="brown fox" prefix="The quick " suffix=" jumps over the lazy dog."
+id=c3 author="reviewer" created="2026-08-27T16:52:00Z" line=39
+exact="service accounts" prefix="Open questions Should the ceiling apply to " suffix="? What happens to a websocket"
 
-Cliché — pick a concrete example instead.
+They should be exempt — they have no interactive session.
+-->
+
+<!-- annotation
+id=c4 author="claude" created="2026-08-27T16:58:00Z" reply-to=c3
+
+Agreed. Exempt anything with `grant_type=client_credentials`, and keep the
+**idle** timeout for interactive sessions only.
 -->
 ```
+
+A reply carries `reply-to` and no selector of its own: it inherits the anchor of
+the comment it answers.
 
 Nothing is written inline. The highlight is re-derived on each render by finding
 the quote again.

@@ -1,45 +1,68 @@
-# Comment anchoring test
+# Session timeout policy
 
-The quick brown fox jumps over the lazy dog. This paragraph exists so we
-have ordinary prose to annotate.
+Sessions currently expire after 30 minutes of inactivity. This document proposes
+moving to a sliding window with a hard ceiling.
 
-<!-- annotation
-id=c1 author="anchit.rao" created="2026-08-26T22:35:42.113Z" line=2
-exact="brown fox" prefix="Comment anchoring test The quick " suffix=" jumps over the lazy dog. This paragraph exists "
+## Proposed limits
 
-Cliché — pick a concrete example instead.
--->
-
-<!-- annotation
-id=c6 author="claude" created="2026-08-26T22:41:10.004Z" reply-to=c1
-
-Replaced it with a worked example in the next revision.
--->
-
-## A table
-
-| Feature  | Status |
-| -------- | ------ |
-| Comments | Draft  |
-| Anchors  | Done   |
+| Setting          | Today  | Proposed |
+| ---------------- | ------ | -------- |
+| Idle timeout     | 30 min | 20 min   |
+| Absolute ceiling | none   | 12 hours |
+| Refresh grace    | none   | 60 s     |
 
 <!-- annotation
-id=c2 author="anchit.rao" created="2026-08-26T22:35:43.201Z" line=14
-exact="Draft" prefix="se to annotate. A table Feature Status Comments " suffix=" Anchors Done A code fence const timeout = 5000;"
+id=c1 author="anchit.rao" created="2026-08-27T16:52:00Z" line=7
+exact="12 hours" prefix="dle timeout 30 min 20 min Absolute ceiling none " suffix=" Refresh grace none 60 s Implementation sketch c"
 
-Should this say "In review"?
+Is 12h defensible? SOC2 reviewers asked about this last time.
 -->
 
-## A code fence
+## Implementation sketch
 
-```js
-const timeout = 5000;
-fetchUser(id).then(render);
+```ts
+const IDLE_TIMEOUT = 20 * 60 * 1000;
+
+function isExpired(session: Session, now: number): boolean {
+  return now - session.lastSeen > IDLE_TIMEOUT;
+}
 ```
 
 <!-- annotation
-id=c3 author="anchit.rao" created="2026-08-26T22:35:44.310Z" line=28
-exact="timeout" prefix=" Comments Draft Anchors Done A code fence const " suffix=" = 5000; fetchUser(id).then(render); A list firs"
+id=c2 author="anchit.rao" created="2026-08-27T16:52:00Z" line=22
+exact="IDLE_TIMEOUT" prefix="esh grace none 60 s Implementation sketch const " suffix=" = 20 * 60 * 1000; function isExpired(session: S"
 
-Make this configurable rather than hard-coded.
+Pull this from config rather than hard-coding it.
 -->
+
+## Open questions
+
+- Should the ceiling apply to service accounts?
+- What happens to a websocket that outlives its session?
+- Do we need a grace period for in-flight requests?
+
+<!-- annotation
+id=c3 author="anchit.rao" created="2026-08-27T16:52:00Z" line=39
+exact="service accounts" prefix="T; } Open questions Should the ceiling apply to " suffix="? What happens to a websocket that outlives its "
+
+They should be exempt — they have no interactive session.
+-->
+
+<!-- annotation
+id=c4 author="claude" created="2026-08-27T12:40:00Z" reply-to=c3
+
+Agreed. Concretely:
+
+1. Exempt anything with `grant_type=client_credentials`
+2. Keep the **idle** timeout for interactive sessions only
+3. Log an audit event either way
+
+```ts
+if (session.isServiceAccount) return false;
+```
+
+> Matches how [the platform docs](https://example.com) describe it.
+-->
+
+> Rollout is gated on the audit log work landing first.
+
