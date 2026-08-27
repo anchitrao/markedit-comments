@@ -3,7 +3,7 @@ import markdownit from 'markdown-it';
 import anchorPlugin from 'markdown-it-anchor';
 import tasklist from 'markdown-it-task-lists';
 
-import { buildTextIndex, spansForRange, wrapSpan, positionOf } from '../src/textIndex';
+import { buildTextIndex, rangeBetween, positionOf } from '../src/textIndex';
 import { locateQuote, describeSelection } from '../src/anchor';
 import { normalize } from '../src/format';
 
@@ -56,24 +56,17 @@ describe('anchoring across markdown constructs', () => {
     expect(reIndex.text.slice(located!.start, located!.end)).toBe(quote);
   });
 
-  it.each(CONSTRUCTS)('wraps the quote in a %s without losing text', (_name, markdown, quote) => {
+  it.each(CONSTRUCTS)('builds a range covering exactly the quote in a %s', (_name, markdown, quote) => {
     const pane = render(markdown);
     const index = buildTextIndex(pane);
-    const before = index.text;
-
     const start = index.text.indexOf(quote);
-    const spans = spansForRange(index, start, start + quote.length);
-    expect(spans.length).toBeGreaterThan(0);
 
-    const marks = spans.map(span => wrapSpan(span, () => {
-      const mark = document.createElement('mark');
-      mark.className = 'mec-highlight';
-      return mark;
-    }));
+    const range = rangeBetween(index, start, start + quote.length);
 
-    // The visible text must be untouched, and the wrapped text must be the quote.
-    expect(buildTextIndex(pane).text).toBe(before);
-    expect(normalize(marks.map(mark => mark.textContent).join(''))).toBe(quote);
+    expect(range).toBeDefined();
+    expect(normalize(range!.toString())).toBe(quote);
+    // Painting must never alter the document.
+    expect(pane.querySelectorAll('mark')).toHaveLength(0);
   });
 });
 
@@ -121,20 +114,6 @@ describe('drift', () => {
   });
 });
 
-describe('normalization', () => {
-  it('matches a quote that rendering split across lines', () => {
-    // `breaks: true` turns the newline into a <br>, splitting the text nodes.
-    const pane = render('a phrase that\nwraps across lines');
-    const index = buildTextIndex(pane);
-    expect(index.text).toContain('phrase that wraps across');
-
-    const start = index.text.indexOf('that wraps');
-    const spans = spansForRange(index, start, start + 'that wraps'.length);
-    // Spanning a <br> means more than one text node must be wrapped.
-    expect(spans.length).toBeGreaterThan(1);
-  });
-});
-
 describe('selection mapping', () => {
   it('maps a DOM selection boundary back to a normalized position', () => {
     const pane = render('The quick brown fox jumps.');
@@ -146,28 +125,28 @@ describe('selection mapping', () => {
   });
 });
 
-describe('span selection', () => {
-  it('does not wrap the formatting whitespace between blocks', () => {
-    // A drag across several blocks used to produce a span for every newline in
-    // the source HTML. Wrapping those puts an inline box between block elements,
-    // which paints as a band across the full width of the pane.
-    const pane = render('First paragraph.\n\n## A heading\n\n- an item\n- another item');
+describe('range building', () => {
+  it('spans element boundaries in one range', () => {
+    // `breaks: true` turns the newline into a <br>, so the quote crosses nodes.
+    const pane = render('a phrase that\nwraps across lines');
     const index = buildTextIndex(pane);
+    const start = index.text.indexOf('that wraps');
 
-    const spans = spansForRange(index, 0, index.text.length);
-    const blank = spans.filter(span => span.node.data.slice(span.from, span.to).trim().length === 0);
+    const range = rangeBetween(index, start, start + 'that wraps'.length);
 
-    expect(blank).toHaveLength(0);
-    expect(spans.length).toBeGreaterThan(0);
+    expect(range).toBeDefined();
+    expect(range!.startContainer).not.toBe(range!.endContainer);
+    expect(normalize(range!.toString())).toBe('that wraps');
   });
 
-  it('still covers every word of the range', () => {
+  it('covers every block of a multi-block range', () => {
     const pane = render('First paragraph.\n\n## A heading\n\n- an item');
     const index = buildTextIndex(pane);
-    const spans = spansForRange(index, 0, index.text.length);
 
-    const covered = spans.map(s => s.node.data.slice(s.from, s.to)).join(' ');
-    for (const word of ['First', 'paragraph', 'heading', 'item']) {
+    const range = rangeBetween(index, 0, index.text.length);
+    const covered = range!.toString();
+
+    for (const word of ['First', 'heading', 'item']) {
       expect(covered).toContain(word);
     }
   });

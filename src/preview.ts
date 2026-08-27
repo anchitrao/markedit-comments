@@ -1,9 +1,8 @@
 import { MarkEdit } from 'markedit-api';
 
 import { describeSelection } from './anchor';
-import { normalize } from './format';
 import { annotationAt, clearHighlights, clearPending, paintHighlights, paintPendingRange, rectFor } from './paint';
-import { addAnnotation, defaultAuthor, isEditorAttached, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved, updateAnnotation } from './store';
+import { addAnnotation, defaultAuthor, isEditorAttached, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved } from './store';
 import { buildTextIndex, positionOf, rangeBetween } from './textIndex';
 import { closePanel, isOwnUI, isPanelOpen, showComposer, showThread } from './ui';
 import { applyThemeColors } from './theme';
@@ -419,4 +418,4 @@ export function orderedRoots(): ParsedAnnotation[] {
   return roots(readAnnotations());
 }
 
-export { clearHighlights, normalize, updateAnnotation };
+export { clearHighlights };

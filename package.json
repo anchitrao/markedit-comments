@@ -1,6 +1,6 @@
 {
   "name": "markedit-comments",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Anchored review comments in MarkEdit's preview, stored in the Markdown as W3C Web Annotation selectors.",
   "license": "MIT",
   "scripts": {

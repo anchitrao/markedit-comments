@@ -182,10 +182,6 @@ export function rectFor(id: string): DOMRect | undefined {
   return rect.width === 0 && rect.height === 0 ? undefined : rect;
 }
 
-export function paintedIds(): string[] {
-  return painted.map(entry => entry.id);
-}
-
 /** The rendered block whose source line range contains `line`. */
 export function blockForLine(pane: HTMLElement, line: number | undefined): HTMLElement | undefined {
   if (line === undefined) {

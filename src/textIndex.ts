@@ -15,9 +15,6 @@ export type TextIndex = {
   offsets: number[];
 };
 
-/** A contiguous span of one text node, the unit that can be wrapped in place. */
-export type NodeSpan = { node: Text; from: number; to: number };
-
 /** Marks a subtree as belonging to this extension, so indexing steps over it. */
 export const UI_ATTRIBUTE = 'data-mec-ui';
 
@@ -82,38 +79,6 @@ export function buildTextIndex(root: HTMLElement): TextIndex {
 }
 
 /**
- * Convert a range of normalized positions into the DOM spans it covers.
- *
- * A normalized range can straddle several text nodes, and within one node the
- * mapped offsets need not be contiguous (collapsed whitespace leaves gaps). Each
- * node therefore contributes a single span from its lowest to its highest mapped
- * offset, which re-includes the whitespace that normalization hid.
- */
-export function spansForRange(index: TextIndex, start: number, end: number): NodeSpan[] {
-  const spans: NodeSpan[] = [];
-
-  for (let position = start; position < end; position += 1) {
-    const node = index.nodes[position];
-    const offset = index.offsets[position];
-    if (node === undefined) {
-      break;
-    }
-
-    const previous = spans[spans.length - 1];
-    if (previous !== undefined && previous.node === node) {
-      previous.to = offset + 1;
-    } else {
-      spans.push({ node, from: offset, to: offset + 1 });
-    }
-  }
-
-  // Drop spans that cover only the whitespace between block elements. Wrapping
-  // those puts an inline box between blocks, which paints as a band across the
-  // full width of the pane rather than as a highlight on any words.
-  return spans.filter(span => span.node.data.slice(span.from, span.to).trim().length > 0);
-}
-
-/**
  * Map a DOM position onto its normalized index.
  *
  * Returns the first normalized position at or after the given DOM position, so
@@ -163,18 +128,3 @@ export function rangeBetween(index: TextIndex, start: number, end: number): Rang
   return range;
 }
 
-/**
- * Wrap a span of a text node in a fresh element, in place.
- *
- * The span is always contained in a single text node, which is what makes
- * `surroundContents` safe here: it can never partially enclose an element.
- */
-export function wrapSpan(span: NodeSpan, create: () => HTMLElement): HTMLElement {
-  const range = document.createRange();
-  range.setStart(span.node, span.from);
-  range.setEnd(span.node, Math.min(span.to, span.node.data.length));
-
-  const wrapper = create();
-  range.surroundContents(wrapper);
-  return wrapper;
-}
