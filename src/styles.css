@@ -42,7 +42,11 @@
   position: fixed;
   z-index: 2147483000;
   box-sizing: border-box;
-  width: 320px;
+  /*
+   * Wide enough for a line of code without horizontal scrolling, which comments
+   * from an agent routinely contain, while still yielding on a narrow window.
+   */
+  width: 480px;
   max-width: calc(100vw - 24px);
   padding: 10px;
   border: 1px solid var(--mec-border);
@@ -70,7 +74,7 @@
 }
 
 .mec-thread {
-  max-height: 40vh;
+  max-height: 50vh;
   overflow-y: auto;
   margin: 0 0 8px 0;
 }
@@ -154,13 +158,18 @@
   padding: 6px 8px;
   border-radius: 6px;
   background-color: var(--mec-highlight);
-  overflow-x: auto;
 }
 
+/*
+ * Code wraps rather than scrolling sideways. A comment is read in place, and a
+ * line that runs past the edge of a panel this size is easier to follow wrapped
+ * than behind a scrollbar that has to be found first.
+ */
 .mec-body.mec-rendered pre code {
   padding: 0;
   background: none;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .mec-body.mec-rendered blockquote {
