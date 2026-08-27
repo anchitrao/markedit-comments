@@ -39,7 +39,15 @@ export function paintHighlights(pane: HTMLElement, annotations: PaintableAnnotat
 
 /** Remove every highlight, restoring the preview to what the renderer produced. */
 export function clearHighlights(pane: HTMLElement): void {
-  for (const mark of pane.querySelectorAll<HTMLElement>(`[${ID_ATTRIBUTE}]`)) {
+  const marks = pane.querySelectorAll<HTMLElement>(`[${ID_ATTRIBUTE}]`);
+  if (marks.length === 0) {
+    // Nothing to unwrap. Returning early matters: `normalize()` below rewrites
+    // text nodes across the whole pane, and doing that under a live selection
+    // leaves WebKit painting a stale one.
+    return;
+  }
+
+  for (const mark of marks) {
     const parent = mark.parentNode;
     if (parent === null) {
       continue;

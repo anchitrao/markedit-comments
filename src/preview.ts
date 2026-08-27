@@ -109,6 +109,12 @@ export function repaint(): void {
     return;
   }
 
+  // Painting rewrites nodes the reader may have selected; see `openComposer`.
+  if (hasLiveSelection(pane)) {
+    repaintWhenSelectionEnds();
+    return;
+  }
+
   // Re-measure here as well: a repaint follows every render, which makes this the
   // reliable point at which the theme is known to be fully applied.
   applyThemeColors();
@@ -124,6 +130,44 @@ export function repaint(): void {
     }
   }
 }
+
+/** Whether the reader currently has text selected inside `root`. */
+function hasLiveSelection(root: HTMLElement): boolean {
+  const selection = window.getSelection();
+  if (selection === null || selection.isCollapsed || selection.rangeCount === 0) {
+    return false;
+  }
+
+  return root.contains(selection.getRangeAt(0).commonAncestorContainer);
+}
+
+/**
+ * Repaint once the reader's selection goes away.
+ *
+ * Rewriting nodes under a live selection makes WebKit paint a stale one, and
+ * clearing the selection ourselves would break selecting text in order to copy
+ * it. Waiting costs nothing: the highlights are already on screen.
+ */
+function repaintWhenSelectionEnds(): void {
+  if (deferredBySelection) {
+    return;
+  }
+
+  deferredBySelection = true;
+  const listener = () => {
+    if (pane !== undefined && hasLiveSelection(pane)) {
+      return;
+    }
+
+    document.removeEventListener('selectionchange', listener);
+    deferredBySelection = false;
+    repaint();
+  };
+
+  document.addEventListener('selectionchange', listener);
+}
+
+let deferredBySelection = false;
 
 function visibleAnnotations(): PaintableAnnotation[] {
   const all = readAnnotations();
@@ -255,8 +299,13 @@ function captureSelection(pane: HTMLElement): Capture | undefined {
 }
 
 function openComposer(capture: Capture): void {
-  paintPending(capture.start, capture.end);
+  // Drop the selection *before* touching the DOM. WebKit keeps its own selection
+  // state, and replacing nodes that a live selection covers leaves it painting
+  // that stale selection: blue blocks survive across cells, or over most of the
+  // document, long after the selection is logically gone. Clearing first means
+  // there is nothing live for the wrap below to disturb.
   window.getSelection()?.removeAllRanges();
+  paintPending(capture.start, capture.end);
 
   showComposer({
     quote: capture.exact,
