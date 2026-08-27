@@ -1,4 +1,5 @@
 import { UI_ATTRIBUTE } from './textIndex';
+import { renderInto } from './markdown';
 import type { ParsedAnnotation } from './format';
 
 import styles from './styles.css?raw';
@@ -250,7 +251,10 @@ function renderComment(comment: ParsedAnnotation, outdated: boolean): HTMLElemen
   }
 
   container.appendChild(byline);
-  container.appendChild(build('p', 'mec-body', comment.body));
+
+  const body = build('div', 'mec-body');
+  void renderInto(body, comment.body);
+  container.appendChild(body);
   return container;
 }
 

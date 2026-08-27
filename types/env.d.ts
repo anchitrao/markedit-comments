@@ -9,3 +9,8 @@ declare module '*.css?raw' {
 declare const __PKG_VERSION__: string;
 
 declare module 'markdown-it-task-lists';
+
+interface Window {
+  /** Provided by MarkEdit-preview: render Markdown with the preview's own parser. */
+  MarkEditRenderHtml?: (markdown: string, styled: boolean) => Promise<string>;
+}
