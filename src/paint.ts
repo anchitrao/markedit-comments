@@ -68,6 +68,12 @@ export function paintHighlights(pane: HTMLElement, annotations: PaintableAnnotat
   apply(NAMES.comment, groups.comment);
   apply(NAMES.resolved, groups.resolved);
   apply(NAMES.outdated, groups.outdated);
+
+  // A full repaint means the saved comments are now on screen, so the stand-in
+  // painted while one was being written has done its job. Leaving it would
+  // double up on the comment just made, and would outlive its range if the text
+  // it covered moved.
+  apply(NAMES.pending, []);
 }
 
 function rangeFor(pane: HTMLElement, index: TextIndex, annotation: PaintableAnnotation) {
@@ -89,17 +95,32 @@ function rangeFor(pane: HTMLElement, index: TextIndex, annotation: PaintableAnno
   return { range, outdated: true };
 }
 
+/**
+ * Highlight objects are created once and their contents replaced.
+ *
+ * Removing an entry from `CSS.highlights` empties the registry but does not
+ * invalidate what was already painted, so the highlight stays on screen with
+ * nothing registered and survives scrolling. Emptying a registered highlight in
+ * place repaints properly, so every name keeps its object for the session.
+ */
+const registry = new Map<string, Highlight>();
+
 function apply(name: string, ranges: Range[]): void {
   if (!isSupported()) {
     return;
   }
 
-  if (ranges.length === 0) {
-    CSS.highlights.delete(name);
-    return;
+  let highlight = registry.get(name);
+  if (highlight === undefined) {
+    highlight = new Highlight();
+    registry.set(name, highlight);
+    CSS.highlights.set(name, highlight);
   }
 
-  CSS.highlights.set(name, new Highlight(...ranges));
+  highlight.clear();
+  for (const range of ranges) {
+    highlight.add(range);
+  }
 }
 
 /** Paint the range a comment is being written about, before it is saved. */
@@ -108,7 +129,7 @@ export function paintPendingRange(range: Range): void {
 }
 
 export function clearPending(): void {
-  CSS.highlights.delete(NAMES.pending);
+  apply(NAMES.pending, []);
 }
 
 /** Briefly emphasise one comment, used when stepping through them. */
@@ -121,7 +142,7 @@ export function setActive(id: string | undefined): void {
 export function clearHighlights(): void {
   painted = [];
   for (const name of Object.values(NAMES)) {
-    CSS.highlights.delete(name);
+    apply(name, []);
   }
 }
 

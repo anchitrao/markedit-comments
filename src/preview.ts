@@ -149,9 +149,20 @@ function installListeners(pane: HTMLElement): void {
   });
 
   // There is no element under the pointer to carry a cursor, so it is set here.
+  //
+  // Nothing happens while a button is held. Hit testing asks the document to
+  // resolve a caret position, and this writes to the pane's style attribute;
+  // doing either on every move of a drag interferes with the selection the
+  // reader is in the middle of making, and leaves it painted afterwards.
   pane.addEventListener('mousemove', event => {
-    const over = annotationAt(event.clientX, event.clientY) !== undefined;
-    pane.style.cursor = over ? 'pointer' : '';
+    if (event.buttons !== 0) {
+      return;
+    }
+
+    const cursor = annotationAt(event.clientX, event.clientY) === undefined ? '' : 'pointer';
+    if (pane.style.cursor !== cursor) {
+      pane.style.cursor = cursor;
+    }
   });
 
   document.addEventListener('mousedown', event => {
@@ -258,13 +269,17 @@ function captureSelection(pane: HTMLElement): Capture | undefined {
 }
 
 function openComposer(capture: Capture): void {
-  // Drop the selection *before* touching the DOM. WebKit keeps its own selection
-  // state, and replacing nodes that a live selection covers leaves it painting
-  // that stale selection: blue blocks survive across cells, or over most of the
-  // document, long after the selection is logically gone. Clearing first means
-  // there is nothing live for the wrap below to disturb.
+  // The selection is deliberately left alone.
+  //
+  // Clearing it here is what kept the preview painted blue after a drag: calling
+  // removeAllRanges() as a mouse selection finishes empties the selection the API
+  // reports while WebKit goes on painting the one it still holds, and nothing
+  // afterwards — not scrolling, not repainting — takes that back.
+  //
+  // There is no need to clear it either. The pending range is painted
+  // independently, and focusing the composer drops the document selection the
+  // ordinary way, which repaints correctly because the browser did it.
   paintPendingRange(capture.range);
-  window.getSelection()?.removeAllRanges();
 
   showComposer({
     quote: capture.exact,
