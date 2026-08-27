@@ -283,3 +283,107 @@
   color: #d1242f;
   background-color: transparent;
 }
+
+/* Comments rail */
+
+:root {
+  --mec-rail-width: 300px;
+}
+
+.mec-rail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147482000;
+  display: none;
+  width: var(--mec-rail-width);
+  overflow: hidden;
+  border-left: 1px solid var(--mec-border);
+  background-color: var(--mec-surface);
+}
+
+.mec-sidebar-open .mec-rail {
+  display: block;
+}
+
+/*
+ * Reserve the rail's width inside the preview rather than overlaying it, so no
+ * text ends up underneath. Qualified with the tag to outrank the preview's own
+ * padding rule, which is a single class.
+ */
+.mec-sidebar-open div.markdown-body {
+  padding-right: calc(var(--mec-rail-width) + 25px);
+}
+
+.mec-rail-empty {
+  padding: 16px 14px;
+  color: var(--mec-muted);
+  font: caption;
+  font-size: 12px;
+}
+
+.mec-card {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--mec-border);
+  border-radius: 9px;
+  background-color: var(--mec-bg);
+  color: var(--mec-text);
+  font: caption;
+  font-size: 12px;
+  line-height: 1.45;
+  /* Cards move as the reader scrolls; animating that would lag behind the text. */
+  transition: box-shadow 0.12s ease-out, opacity 0.12s ease-out;
+}
+
+.mec-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.mec-card.mec-card-active {
+  border-color: var(--mec-accent);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+}
+
+/* An anchor scrolled out of view keeps its place, but recedes. */
+.mec-card.mec-card-offscreen {
+  opacity: 0.45;
+}
+
+.mec-card.mec-card-resolved .mec-body {
+  color: var(--mec-muted);
+}
+
+.mec-card .mec-quote {
+  margin-bottom: 6px;
+  max-height: 2.2em;
+}
+
+/* The reply box and actions belong to the focused thread only, as they would
+   otherwise triple the height of every card in the rail. */
+.mec-card .mec-card-input,
+.mec-card .mec-card-actions {
+  display: none;
+}
+
+.mec-card.mec-card-active .mec-card-input,
+.mec-card.mec-card-active .mec-card-actions {
+  display: flex;
+}
+
+.mec-card .mec-card-input {
+  min-height: 50px;
+  margin-top: 6px;
+}
+
+.mec-card.mec-card-active .mec-card-input {
+  display: block;
+}
+
+.mec-card .mec-thread {
+  max-height: none;
+}

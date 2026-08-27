@@ -73,7 +73,7 @@ function position(panel: HTMLElement, near: DOMRect): void {
   panel.style.top = `${Math.round(top)}px`;
 }
 
-function build(tag: string, className?: string, text?: string): HTMLElement {
+export function build(tag: string, className?: string, text?: string): HTMLElement {
   const element = document.createElement(tag);
   if (className !== undefined) {
     element.className = className;
@@ -92,7 +92,7 @@ function build(tag: string, className?: string, text?: string): HTMLElement {
  * reader can type a sentence and be done; Shift-Return is left for the occasional
  * multi-line comment, and Escape abandons it.
  */
-function makeInput(placeholder: string, submit: () => void): HTMLTextAreaElement {
+export function makeInput(placeholder: string, submit: () => void): HTMLTextAreaElement {
   const input = document.createElement('textarea');
   input.className = 'mec-input';
   input.placeholder = placeholder;
@@ -120,7 +120,7 @@ function actionRow(hint: string, buttons: HTMLElement[]): HTMLElement {
   return row;
 }
 
-function makeButton(label: string, className: string, action: () => void): HTMLButtonElement {
+export function makeButton(label: string, className: string, action: () => void): HTMLButtonElement {
   const button = document.createElement('button');
   button.className = `mec-button ${className}`;
   button.textContent = label;
@@ -233,7 +233,7 @@ export function showThread(options: ThreadOptions): void {
   present(panel, near);
 }
 
-function renderComment(comment: ParsedAnnotation, outdated: boolean): HTMLElement {
+export function renderComment(comment: ParsedAnnotation, outdated: boolean): HTMLElement {
   const container = build('div', 'mec-comment');
 
   const byline = build('div', 'mec-byline');

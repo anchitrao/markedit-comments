@@ -140,6 +140,11 @@ HTML comments; they will simply stop being drawn.
   Shift-Return adds a line, Escape cancels.
 - **Open a thread** — click a highlight. Reply, resolve, or delete from there.
   Deleting a comment deletes its replies.
+- **See every thread at once** — `Extensions ▸ Comments ▸ Show Comments Sidebar`
+  (`Shift`-`Command`-`\`). A rail beside the document holds one card per thread,
+  each level with the text it annotates and moving with it as you scroll. Click a
+  card to focus it and reveal its reply box; click a highlight to jump to its
+  card. Set `"sidebar": true` to have it open by default.
 - **Navigate** — `Extensions ▸ Comments ▸ Next / Previous Comment`.
 - **Hand the review to an agent** — the comments are in the file, so "read my
   comments in `notes.md`" is enough. `Copy All Comments` puts them on the
@@ -168,7 +173,8 @@ In MarkEdit's
   "extension.markeditComments": {
     "author": "anchit.rao",
     "openOnSelect": true,
-    "showResolved": true
+    "showResolved": true,
+    "sidebar": false
   }
 }
 ```
@@ -178,6 +184,8 @@ In MarkEdit's
 - `openOnSelect` — open the composer as soon as text is selected. Set to `false`
   to use only `Comments ▸ Comment on Selection`.
 - `showResolved` — keep drawing resolved comments in the preview.
+- `sidebar` — open the comments rail when a document opens. The toggle is
+  remembered per machine once you use it.
 
 ## The format in full
 

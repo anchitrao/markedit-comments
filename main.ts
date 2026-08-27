@@ -1,7 +1,7 @@
 import { MarkEdit } from 'markedit-api';
 import type { MenuItem } from 'markedit-api';
 
-import { activate, handleSelection, orderedRoots, repaint, currentPane } from './src/preview';
+import { activate, handleSelection, orderedRoots, repaint, currentPane, toggleSidebar, sidebarIsOpen } from './src/preview';
 import { installStyles } from './src/ui';
 import { observeTheme } from './src/theme';
 import { readAnnotations, removeAnnotation, roots, threadOf } from './src/store';
@@ -26,6 +26,7 @@ function readSettings(): Settings {
     author: typeof configured.author === 'string' ? configured.author : undefined,
     openOnSelect: configured.openOnSelect !== false,
     showResolved: configured.showResolved !== false,
+    sidebar: configured.sidebar === true,
   };
 }
 
@@ -49,6 +50,13 @@ MarkEdit.addMainMenuItem({
           });
         }
       },
+    },
+    {
+      title: 'Show Comments Sidebar',
+      key: '\\',
+      modifiers: ['Shift', 'Command'],
+      state: () => ({ isSelected: sidebarIsOpen() }),
+      action: () => { toggleSidebar(); },
     },
     { separator: true },
     {

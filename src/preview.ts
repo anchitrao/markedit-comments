@@ -1,10 +1,11 @@
 import { MarkEdit } from 'markedit-api';
 
 import { describeSelection } from './anchor';
-import { annotationAt, clearHighlights, clearPending, paintHighlights, paintPendingRange, rectFor } from './paint';
+import { annotationAt, clearHighlights, clearPending, outdatedIds, paintHighlights, paintPendingRange, rectFor } from './paint';
 import { addAnnotation, defaultAuthor, isEditorAttached, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved } from './store';
 import { buildTextIndex, positionOf, rangeBetween } from './textIndex';
 import { closePanel, isOwnUI, isPanelOpen, showComposer, showThread } from './ui';
+import * as sidebar from './sidebar';
 import { applyThemeColors } from './theme';
 import type { PaintableAnnotation } from './paint';
 import type { ParsedAnnotation } from './format';
@@ -15,7 +16,11 @@ export type Settings = {
   openOnSelect: boolean;
   /** Keep painting highlights for comments that have been resolved. */
   showResolved: boolean;
+  /** Show the comments rail beside the document. */
+  sidebar: boolean;
 };
+
+const SIDEBAR_KEY = 'mec.sidebar-open';
 
 let pane: HTMLElement | undefined;
 let settings: Settings;
@@ -29,6 +34,17 @@ export function activate(options: Settings): void {
     pane = found;
     installListeners(found);
     watch(found);
+
+    sidebar.install(found, {
+      onReply: (id, body) => replyTo(id, body),
+      onToggleResolved: id => { toggleResolved(id); scheduleRepaint(); },
+      onDelete: id => { removeAnnotation(id); scheduleRepaint(); },
+      onFocusAnchor: id => scrollToAnchor(id),
+    });
+
+    const remembered = localStorage.getItem(SIDEBAR_KEY);
+    sidebar.setOpen(remembered === null ? settings.sidebar : remembered === 'true');
+
     paintWhenReady();
   });
 }
@@ -112,7 +128,60 @@ export function repaint(): void {
 
   // Painting draws ranges rather than rewriting nodes, so it cannot re-trigger
   // the observer and cannot disturb a selection the reader is holding.
-  paintHighlights(pane, visibleAnnotations());
+  const annotations = visibleAnnotations();
+  paintHighlights(pane, annotations);
+  renderSidebar(annotations);
+}
+
+/** Feed the rail the same threads that were just painted. */
+function renderSidebar(annotations: PaintableAnnotation[]): void {
+  const all = readAnnotations();
+  const outdated = outdatedIds();
+
+  sidebar.render(annotations.map(root => ({
+    root,
+    replies: all.filter(other => other.replyTo === root.id),
+    outdated: outdated.has(root.id),
+  })));
+}
+
+function replyTo(id: string, body: string): void {
+  const root = readAnnotations().find(annotation => annotation.id === id);
+  if (root === undefined) {
+    return;
+  }
+
+  addAnnotation({
+    body,
+    exact: '',
+    prefix: '',
+    suffix: '',
+    replyTo: id,
+    author: defaultAuthor(settings.author),
+    created: new Date().toISOString(),
+  }, MarkEdit.editorAPI.getLineNumber(root.to));
+}
+
+/** Bring a comment's anchor into view without stealing the reader's place. */
+function scrollToAnchor(id: string): void {
+  const rect = rectFor(id);
+  if (rect === undefined || pane === undefined) {
+    return;
+  }
+
+  const middle = rect.top + rect.height / 2 - pane.clientHeight / 2;
+  pane.scrollBy({ top: middle, behavior: 'smooth' });
+}
+
+/** Show or hide the rail, remembering the choice. */
+export function toggleSidebar(): boolean {
+  const open = sidebar.toggle();
+  localStorage.setItem(SIDEBAR_KEY, String(open));
+  return open;
+}
+
+export function sidebarIsOpen(): boolean {
+  return sidebar.isOpen();
 }
 
 function visibleAnnotations(): PaintableAnnotation[] {
@@ -144,6 +213,12 @@ function installListeners(pane: HTMLElement): void {
 
     event.preventDefault();
     event.stopPropagation();
+
+    if (sidebar.isOpen()) {
+      sidebar.focus(hit.id);
+      return;
+    }
+
     openThread(hit.id, rectFor(hit.id) ?? new DOMRect(event.clientX, event.clientY, 0, 0), hit.outdated);
   });
 

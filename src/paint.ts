@@ -171,6 +171,11 @@ export function annotationAt(x: number, y: number): { id: string; outdated: bool
   return undefined;
 }
 
+/** Ids whose quote could not be found, so they fell back to their block. */
+export function outdatedIds(): Set<string> {
+  return new Set(painted.filter(entry => entry.outdated).map(entry => entry.id));
+}
+
 /** Where a comment currently sits on screen, for positioning UI against it. */
 export function rectFor(id: string): DOMRect | undefined {
   const entry = painted.find(candidate => candidate.id === id);
