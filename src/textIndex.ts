@@ -39,8 +39,10 @@ export function buildTextIndex(root: HTMLElement): TextIndex {
         return NodeFilter.FILTER_REJECT;
       }
 
-      const tag = parent.tagName;
-      if (tag === 'SCRIPT' || tag === 'STYLE') {
+      // SVG elements report their tag name in its literal case, so an <style>
+      // inside a rendered diagram does not match 'STYLE'. Mermaid injects one,
+      // and without this its stylesheet is indexed as if it were prose.
+      if (parent.closest('style, script, svg style, svg script') !== null) {
         return NodeFilter.FILTER_REJECT;
       }
 

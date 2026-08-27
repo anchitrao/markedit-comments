@@ -1,5 +1,6 @@
 import { MarkEdit } from 'markedit-api';
 import { parseAnnotations, serializeAnnotation, nextIdentifier } from './format';
+import { safeInsertionPoint } from './regions';
 import type { Annotation, ParsedAnnotation } from './format';
 
 /**
@@ -57,7 +58,13 @@ export function addAnnotation(draft: Omit<Annotation, 'id'>, blockEndLine: numbe
   const existing = parseAnnotations(document);
 
   const annotation: Annotation = { ...draft, id: nextIdentifier(existing.map(item => item.id)) };
-  const at = insertionPoint(document, existing, lastContentOffset(document, endOfLine(blockEndLine)));
+
+  // The line the preview reported can land inside a code fence — a Mermaid fence
+  // reports no lines at all — and an HTML comment written there is not a comment
+  // in that language, so it breaks the block it was meant to annotate. The source
+  // is checked directly rather than trusting the reported line.
+  const requested = lastContentOffset(document, endOfLine(blockEndLine));
+  const at = insertionPoint(document, existing, safeInsertionPoint(document, requested));
 
   const block = `\n\n${serializeAnnotation(annotation)}${trailingSeparator(document, at)}`;
   api.setText(block, { from: at, to: at });

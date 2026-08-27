@@ -160,3 +160,42 @@ describe('before the editor is attached', () => {
     expect(detached.readAnnotations()).toEqual([]);
   });
 });
+
+describe('placement near code fences', () => {
+  const DOC = 'Intro.\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nOutro.\n';
+
+  beforeEach(() => { editor.text = DOC; });
+
+  it('never writes inside a fence, even when told to', () => {
+    // A Mermaid fence reports no line numbers, so the line handed in here can
+    // point into the middle of the diagram. An HTML comment written there is not
+    // a comment in Mermaid, and breaks the diagram it was annotating.
+    addAnnotation(draft('about the diagram'), 3); // "flowchart LR"
+
+    const fenceStart = editor.text.indexOf('```mermaid');
+    const fenceEnd = editor.text.indexOf('```', fenceStart + 3) + 3;
+    const at = editor.text.indexOf('<!-- annotation');
+
+    expect(at).toBeGreaterThan(fenceEnd);
+    expect(editor.text).toContain('```mermaid\nflowchart LR\n  A --> B\n```');
+  });
+
+  it('leaves the diagram byte-identical', () => {
+    addAnnotation(draft('note'), 4);
+    const fence = editor.text.slice(editor.text.indexOf('```mermaid'), editor.text.indexOf('```', editor.text.indexOf('```mermaid') + 3) + 3);
+    expect(fence).toBe('```mermaid\nflowchart LR\n  A --> B\n```');
+  });
+
+  it('still round-trips cleanly', () => {
+    addAnnotation(draft('note'), 3);
+    removeAnnotation('c1');
+    expect(editor.text).toBe(DOC);
+  });
+
+  it('does not write into front matter', () => {
+    editor.text = '---\ntitle: T\n---\n\nBody.\n';
+    addAnnotation(draft('note'), 1); // inside the front matter
+    expect(editor.text.startsWith('---\ntitle: T\n---')).toBe(true);
+    expect(editor.text.indexOf('<!-- annotation')).toBeGreaterThan(editor.text.indexOf('---\n\n'));
+  });
+});
