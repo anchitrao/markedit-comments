@@ -305,7 +305,11 @@ function openComposer(capture: Capture): void {
   // document, long after the selection is logically gone. Clearing first means
   // there is nothing live for the wrap below to disturb.
   window.getSelection()?.removeAllRanges();
-  paintPending(capture.start, capture.end);
+
+  // Paint on the next frame, not in this one. Clearing the selection and then
+  // rewriting the nodes it covered within the same tick gives WebKit no chance
+  // to drop the selection it is still holding, and it goes on painting it.
+  requestAnimationFrame(() => paintPending(capture.start, capture.end));
 
   showComposer({
     quote: capture.exact,

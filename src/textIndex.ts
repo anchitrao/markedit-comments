@@ -107,7 +107,10 @@ export function spansForRange(index: TextIndex, start: number, end: number): Nod
     }
   }
 
-  return spans;
+  // Drop spans that cover only the whitespace between block elements. Wrapping
+  // those puts an inline box between blocks, which paints as a band across the
+  // full width of the pane rather than as a highlight on any words.
+  return spans.filter(span => span.node.data.slice(span.from, span.to).trim().length > 0);
 }
 
 /**

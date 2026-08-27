@@ -145,3 +145,30 @@ describe('selection mapping', () => {
     expect(positionOf(index, node, index.offsets[at])).toBe(at);
   });
 });
+
+describe('span selection', () => {
+  it('does not wrap the formatting whitespace between blocks', () => {
+    // A drag across several blocks used to produce a span for every newline in
+    // the source HTML. Wrapping those puts an inline box between block elements,
+    // which paints as a band across the full width of the pane.
+    const pane = render('First paragraph.\n\n## A heading\n\n- an item\n- another item');
+    const index = buildTextIndex(pane);
+
+    const spans = spansForRange(index, 0, index.text.length);
+    const blank = spans.filter(span => span.node.data.slice(span.from, span.to).trim().length === 0);
+
+    expect(blank).toHaveLength(0);
+    expect(spans.length).toBeGreaterThan(0);
+  });
+
+  it('still covers every word of the range', () => {
+    const pane = render('First paragraph.\n\n## A heading\n\n- an item');
+    const index = buildTextIndex(pane);
+    const spans = spansForRange(index, 0, index.text.length);
+
+    const covered = spans.map(s => s.node.data.slice(s.from, s.to)).join(' ');
+    for (const word of ['First', 'paragraph', 'heading', 'item']) {
+      expect(covered).toContain(word);
+    }
+  });
+});
