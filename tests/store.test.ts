@@ -26,6 +26,8 @@ const editor = {
 
 vi.mock('markedit-api', () => ({
   MarkEdit: {
+    // Stands for an attached editor; `store` checks this before reading text.
+    editorView: { state: {} },
     editorAPI: editor,
     getDirectoryPath: () => '/Users/example/Library/Containers/app.cyan.markedit/Data',
   },
@@ -134,5 +136,27 @@ describe('author', () => {
   it('recovers the account name from the sandbox container path', () => {
     // `home` resolves to the app container, so the naive basename would be "Data".
     expect(defaultAuthor()).toBe('example');
+  });
+});
+
+describe('before the editor is attached', () => {
+  it('reads no comments instead of throwing', async () => {
+    // User scripts load before the editor exists. Reaching for the document then
+    // threw, which aborted the rest of module initialization — including the
+    // menu registration on the following line.
+    vi.resetModules();
+    vi.doMock('markedit-api', () => ({
+      MarkEdit: {
+        editorView: undefined,
+        editorAPI: {
+          getText: () => { throw new TypeError("undefined is not an object (evaluating 'this.state.doc')"); },
+        },
+        getDirectoryPath: () => '/Users/example/Library/Containers/app.cyan.markedit/Data',
+      },
+    }));
+
+    const detached = await import('../src/store');
+    expect(detached.isEditorAttached()).toBe(false);
+    expect(detached.readAnnotations()).toEqual([]);
   });
 });

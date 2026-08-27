@@ -3,7 +3,7 @@ import { MarkEdit } from 'markedit-api';
 import { describeSelection } from './anchor';
 import { normalize } from './format';
 import { ID_ATTRIBUTE, clearHighlights, paintHighlights } from './paint';
-import { addAnnotation, defaultAuthor, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved, updateAnnotation } from './store';
+import { addAnnotation, defaultAuthor, isEditorAttached, readAnnotations, removeAnnotation, roots, threadOf, toggleResolved, updateAnnotation } from './store';
 import { buildTextIndex, positionOf, spansForRange, wrapSpan } from './textIndex';
 import { closePanel, isOwnUI, isPanelOpen, showComposer, showThread } from './ui';
 import { applyThemeColors } from './theme';
@@ -32,12 +32,28 @@ export function activate(options: Settings): void {
     pane = found;
     installListeners(found);
     watch(found);
-    repaint();
+    paintWhenReady();
   });
 }
 
 export function currentPane(): HTMLElement | undefined {
   return pane;
+}
+
+/**
+ * Paint once there is a document to read.
+ *
+ * The preview pane can already exist when this script loads, but the editor
+ * behind it may not be attached yet; painting then would read a document that
+ * does not exist.
+ */
+function paintWhenReady(): void {
+  if (isEditorAttached()) {
+    repaint();
+    return;
+  }
+
+  MarkEdit.onEditorReady(() => repaint());
 }
 
 /**
@@ -89,7 +105,7 @@ function scheduleRepaint(): void {
 }
 
 export function repaint(): void {
-  if (pane === undefined) {
+  if (pane === undefined || !isEditorAttached()) {
     return;
   }
 

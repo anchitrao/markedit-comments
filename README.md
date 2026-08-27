@@ -60,15 +60,64 @@ line either side.
 
 ## Installing
 
-Requires [MarkEdit](https://github.com/MarkEdit-app/MarkEdit) 1.24 or later and
-[MarkEdit-preview](https://github.com/MarkEdit-app/MarkEdit-preview), which
-provides the preview pane this builds on.
+### Requirements
+
+- **MarkEdit** — [download](https://github.com/MarkEdit-app/MarkEdit/releases/latest)
+  or `brew install --cask markedit`. Developed and tested against 1.34; 1.29 or
+  later is recommended, since that is where `getDirectoryPath` (used to derive the
+  default comment author) arrived.
+- **MarkEdit-preview** — install from the
+  [extension registry](https://markedit-app.github.io/extensions/#markedit-preview).
+  This extension draws into the preview pane that one creates, so it does nothing
+  without it.
+
+### Install the prebuilt script
+
+Download [`dist/markedit-comments.js`](dist/markedit-comments.js), then:
 
 ```sh
-npm install
-npm run build     # builds and copies the script into MarkEdit's scripts folder
-npm run reload    # restart MarkEdit to pick it up
+mkdir -p ~/Library/Containers/app.cyan.markedit/Data/Documents/scripts
+cp markedit-comments.js ~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/
 ```
+
+Restart MarkEdit. That folder is MarkEdit's user-script directory; every `.js`
+file in it is loaded at launch.
+
+To open the folder in Finder instead:
+
+```sh
+open ~/Library/Containers/app.cyan.markedit/Data/Documents/scripts
+```
+
+### Or build from source
+
+Requires Node 20 or later.
+
+```sh
+git clone https://github.com/anchitrao/markedit-comments.git
+cd markedit-comments
+npm install
+npm run build     # builds, and copies the script into the scripts folder for you
+npm run reload    # quit and relaunch MarkEdit
+```
+
+### Check that it loaded
+
+Open a Markdown file, switch to the preview (`Shift`-`Command`-`V`), and look for
+**Comments** under the `Extensions` menu. Then select a few words in the preview —
+a composer should open under them.
+
+If the menu is missing, confirm the file is in the scripts folder and that
+MarkEdit was restarted; scripts are read only at launch.
+
+### Uninstalling
+
+```sh
+rm ~/Library/Containers/app.cyan.markedit/Data/Documents/scripts/markedit-comments.js
+```
+
+Restart MarkEdit. Comments already written stay in your Markdown files as inert
+HTML comments; they will simply stop being drawn.
 
 ## Using it
 

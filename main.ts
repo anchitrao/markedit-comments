@@ -7,6 +7,7 @@ import { observeTheme } from './src/theme';
 import { readAnnotations, removeAnnotation, roots, threadOf } from './src/store';
 import { ID_ATTRIBUTE } from './src/paint';
 import type { Settings } from './src/preview';
+import type { ParsedAnnotation } from './src/format';
 
 const SETTINGS_KEY = 'extension.markeditComments';
 
@@ -30,10 +31,8 @@ function readSettings(): Settings {
 
 const settings = readSettings();
 
-installStyles();
-observeTheme();
-activate(settings);
-
+// Registered first: the menu is how the extension is discovered, and it should
+// survive anything going wrong in the parts that touch the document.
 MarkEdit.addMainMenuItem({
   title: 'Comments',
   icon: 'bubble.left.and.text.bubble.right',
@@ -67,7 +66,7 @@ MarkEdit.addMainMenuItem({
     { separator: true },
     {
       title: 'Copy All Comments',
-      action: () => void copyForReview(),
+      action: () => copyForReview(),
     },
     {
       title: 'Delete Resolved Comments',
@@ -81,6 +80,10 @@ MarkEdit.addMainMenuItem({
     },
   ] satisfies MenuItem[],
 });
+
+installStyles();
+observeTheme();
+activate(settings);
 
 function resolvedRoots() {
   return roots(readAnnotations()).filter(annotation => annotation.resolved === true);
@@ -115,15 +118,32 @@ function step(direction: number): void {
  * straight from the file; this is for the times you would rather paste the
  * review into a conversation than point at the path.
  */
-async function copyForReview(): Promise<void> {
+function copyForReview(): void {
   const all = readAnnotations();
   const comments = roots(all);
 
   if (comments.length === 0) {
-    await MarkEdit.showAlert({ title: 'No comments', message: 'This document has no comments yet.' });
+    void MarkEdit.showAlert({ title: 'No comments', message: 'This document has no comments yet.' });
     return;
   }
 
+  // `clipboard.write` has to be reached synchronously from the menu action or the
+  // user activation is spent and the write is refused. Handing it a promise for
+  // the text keeps the call synchronous while the file path is still being looked
+  // up.
+  const item = new ClipboardItem({
+    'text/plain': reviewText(all, comments).then(text => new Blob([text], { type: 'text/plain' })),
+  });
+
+  navigator.clipboard.write([item]).catch((error: unknown) => {
+    void MarkEdit.showAlert({
+      title: 'Could not copy comments',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  });
+}
+
+async function reviewText(all: ParsedAnnotation[], comments: ParsedAnnotation[]): Promise<string> {
   const info = typeof MarkEdit.getFileInfo === 'function' ? await MarkEdit.getFileInfo() : undefined;
   const heading = info?.filePath === undefined ? 'Review comments' : `Review comments on ${info.filePath}`;
 
@@ -137,8 +157,7 @@ async function copyForReview(): Promise<void> {
     ].join('\n');
   });
 
-  const text = [heading, '', ...sections].join('\n\n');
-  await navigator.clipboard.writeText(text);
+  return [heading, ...sections].join('\n\n');
 }
 
 async function deleteResolved(): Promise<void> {

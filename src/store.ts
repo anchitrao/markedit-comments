@@ -12,7 +12,22 @@ import type { Annotation, ParsedAnnotation } from './format';
  * blocks is invisible to every renderer and inert to the parser.
  */
 export function readAnnotations(): ParsedAnnotation[] {
+  if (!isEditorAttached()) {
+    return [];
+  }
+
   return parseAnnotations(MarkEdit.editorAPI.getText());
+}
+
+/**
+ * Whether the editor is attached to a document yet.
+ *
+ * User scripts run before that happens, and the text API reaches through the
+ * editor view, so reading the document too early throws rather than returning
+ * empty. Callers that can run at load time check this first.
+ */
+export function isEditorAttached(): boolean {
+  return MarkEdit.editorView?.state !== undefined;
 }
 
 /** Comments on the same anchor, oldest first, with replies following their parent. */
